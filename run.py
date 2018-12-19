@@ -1,6 +1,6 @@
 import numpy as np
 
-from CIFAR10_DataLoader import CifarDataManager, display_cifar
+from CIFAR_DataLoader import CifarDataManager, display_cifar
 from vggNet import Model
 
 '''
