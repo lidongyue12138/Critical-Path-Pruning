@@ -6,6 +6,8 @@ import keras
 import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "5,6,7"
 
 
 # ================== VGG Network Model with Control Gates ==================
@@ -44,7 +46,9 @@ class Model():
         self.restore_model(graph)
         generatedGates = self.encode_input(data_input)
         self.close_sess()
-        return np.array(generatedGates)
+
+        return generatedGates
+
 
     '''
     Restore the original network weights
@@ -52,7 +56,12 @@ class Model():
     def restore_model(self, graph):
         savedVariable = {}
 
-        self.sess = tf.Session(graph = graph)
+        # If GPU is needed
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        self.sess = tf.Session(graph = graph, config = config)
+        # Else if CPU needed
+        # self.sess = tf.Session(graph = graph)
         self.sess.run(self.init)
 
         with graph.as_default():
@@ -73,7 +82,7 @@ class Model():
             saver = tf.train.Saver(savedVariable)
             # saver = tf.train.Saver(max_to_keep = None)
             saver.restore(self.sess, "vggNet/augmentation.ckpt-120")
-            print("Restored successfully!")
+            # print("Restored successfully!")
             
 
         # print(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
@@ -176,7 +185,8 @@ class Model():
     Produce a lambda code
     '''
     def encode_input(self, input_data):
-        generateGate = np.array([])
+        generateGate = dict()
+
         learning_rate = self.learning_rate
         L1_loss_penalty = self.L1_loss_penalty
         threshold = self.threshold
@@ -194,7 +204,7 @@ class Model():
         for epoch in range(100):
             if epoch == 50: 
                 learning_rate /= 10
-                # penalty *= 10
+                L1_loss_penalty *= 10
 
             self.sess.run(self.train_step, feed_dict = {
                 self.xs: input_data,
@@ -217,18 +227,61 @@ class Model():
             print("Epoch: {}: Cross_Entropy: {}, L1_loss: {}, Accuracy: {}".format(
                 epoch, cross_entropy, L1_loss, accuracy))
 
+            # print(self.AllGateVariables.keys())
+            '''
+                dict_keys(
+                    [
+                        'Conv2/composite_function/gate:0', 
+                        'FC14/gate:0', 
+                        'Conv5/composite_function/gate:0', 
+                        'Conv13/composite_function/gate:0', 
+                        'FC15/gate:0', 
+                        'Conv9/composite_function/gate:0', 
+                        'Conv3/composite_function/gate:0', 
+                        'Conv7/composite_function/gate:0', 
+                        'Conv10/composite_function/gate:0', 
+                        'Conv6/composite_function/gate:0', 
+                        'Conv4/composite_function/gate:0', 
+                        'Conv12/composite_function/gate:0', 
+                        'Conv1/composite_function/gate:0', 
+                        'Conv11/composite_function/gate:0', 
+                        'Conv8/composite_function/gate:0'
+                    ]
+                )
+
+            '''
             newGate = []
-            for gate in self.AllGateVariables.values():
-                tmp = gate.eval(session=self.sess)
+            # Li Dongyue's Version
+
+            # for gate in self.AllGateVariables.values():
+            #     tmp = gate.eval(session=self.sess)
+            #     tmp[tmp < threshold] = 0
+            #     newGate.append(tmp)
+            # if L1_loss == 'nan' or L1_loss > tmpLoss:
+            #     continue
+            # if accuracy > 0.99 and L1_loss != 'nan' and L1_loss < 1000:
+            #     generateGate = np.array(newGate)
+            #     tmpLoss = L1_loss
+            
+
+            # Cao Mengqi's version: Json
+            for gate in self.AllGateVariables.keys():
+                tmp = self.AllGateVariables[gate].eval(session=self.sess)
                 tmp[tmp < threshold] = 0
-                newGate.append(tmp)
+                tmp = tmp.tolist()
+                res = dict()
+                res["layer_name"] = gate
+                res["layer_lambda"] = tmp
+                res["shape"] = len(tmp) 
+                newGate.append(res)
             if L1_loss == 'nan' or L1_loss > tmpLoss:
                 continue
             if accuracy > 0.99 and L1_loss != 'nan' and L1_loss < 1000:
-                generateGate = np.array(newGate)
+                generateGate = newGate
                 tmpLoss = L1_loss
         
-        return np.array(generateGate)
+        # now generatedGate is a list [(layer name, lambda), ...]
+        return generateGate 
 
 
     '''
@@ -237,6 +290,29 @@ class Model():
     def close_sess(self):
         self.sess.close()
         
+    '''
+    Function that print out original VGG network weight
+    '''
+    # def print_weights_to_Json(self):
+    #     import json
+    #     from tensorflow.python import pywrap_tensorflow  
+    #     model_dir="vggNet/augmentation.ckpt-120" #checkpoint的文件位置  
+    #     # Read data from checkpoint file  
+    #     reader = pywrap_tensorflow.NewCheckpointReader(model_dir)  
+    #     var_to_shape_map = sorted(reader.get_variable_to_shape_map())  
+    #     # Print tensor name and values
+    #     layer = dict()
+    #     result = dict()
+    #     for key in var_to_shape_map:  
+    #         layer[key] = dict()
+    #         layer[key]["name"] = key
+    #         layer[key]["shape"] = reader.get_tensor(key).shape
+    #         result[key] = {"name": key, "shape": reader.get_tensor(key).shape, "vec": reader.get_tensor(key).tolist()}
+    #     # with open("weights.json","w") as f:
+    #     #     json.dump(result,f, sort_keys=True, indent=4, separators=(',', ':'))
+    #     with open("layers.json","w") as f:
+    #         json.dump(layer,f, sort_keys=True, indent=4, separators=(',', ':'))
+
     '''
     Helper Builder Functions: to build model more conveniently
     '''
