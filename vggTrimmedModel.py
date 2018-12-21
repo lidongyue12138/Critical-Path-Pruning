@@ -20,28 +20,84 @@ class TrimmedModel():
         self.build_model(self.graph, 100)
         self.restore_model(self.graph)
         # self.close_sess()
-
+ 
         # with self.graph.as_default():
         #     print(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
+
+    '''
+    Find mask class unit
+    '''
+    def mask_class_unit(self, classid):
+        formulizedDict = {}
+        json_path = "./ClassEncoding/class" + str(classid) + ".json"
+        with open(json_path, "r") as f:
+            gatesValueDict = json.load(f)
+            for idx in range(len(gatesValueDict)):
+                layer = gatesValueDict[idx]
+                name = layer["name"]
+                vec = layer["shape"]
+                # process name
+                name = name.split('/')[0]
+                # process vec
+                for i in range(len(vec)):
+                    if vec[i] < 10:
+                        vec[i] = 0
+                    else:
+                        vec[i] = 1
+                layer["name"] = name
+                layer["shape"] = vec
+
+            return gatesValueDict
 
     '''
     Assign trimmed weight to weight variables
     '''
     def assign_weight(self):
-        # with self.graph.as_default():
-        #     for var in tf.global_variables():
-        #         name = "Conv" + str(1) + "/composite_function/kernel:0"
-        #         if var.name == name:
-        #             weights = self.sess.run(var)
-        #             print(weights)
-        #             weights = np.zeros(weights.shape)
-        #             assign = tf.assign(var,weights)
-        #             self.sess.run(assign)
-        # print(self.sess.run(self.graph.get_tensor_by_name("Conv1/composite_function/kernel:0")))
-        print(self.graph.get_tensor_by_name("FC14/W:0"))
-        print(self.graph.get_tensor_by_name("FC14/bias:0"))
+        class_id = 0
+        maskDict = self.mask_class_unit(class_id)
 
+        for tmpLayer in maskDict:
+            if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
+                with self.graph.as_default():
+                    layerNum = tmpLayer["name"].strip("Conv")
+                    name = "Conv" + layerNum + "/composite_function/kernel:0"
+                    for var in tf.global_variables():
+                        if var.name == name:
+                            tmpWeights = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
 
+                            tmpWeights[:,:,:, tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpWeights)
+                            self.sess.run(assign)
+    
+                            print(self.sess.run(self.graph.get_tensor_by_name(name))==0)
+            if (tmpLayer["name"][0] == "F"): # if the layer is fully connected
+                with self.graph.as_default():
+                    layerNum = tmpLayer["name"].strip("FC")
+                    name_W = "FC" + layerNum + "/W:0"
+                    name_bias = "FC" + layerNum + "/bias:0"
+                    for var in tf.global_variables():
+                        if var.name == name_W:
+                            tmpWeights = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
+
+                            tmpWeights[:, tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpWeights)
+                            self.sess.run(assign)
+
+                            print(self.sess.run(self.graph.get_tensor_by_name(name_W))==0)
+                        if var.name == name_bias:
+                            tmpBias = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
+
+                            tmpBias[tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpBias)
+                            self.sess.run(assign)
+                            print(self.sess.run(self.graph.get_tensor_by_name(name_bias))==0)
+
+        with self.graph.as_default():
+            saver = tf.train.Saver(max_to_keep = None)
+            saver.save(self.sess, 'vggNet/test.ckpt')
 
     '''
     Test Accuracy
