@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import keras
 import _pickle as cPickle
 
 # =============== Define Data Loader ===============
@@ -33,15 +34,29 @@ class CifarLoader(object):
         images = np.vstack(d["data"] for d in data)
 
         n = len(images)
-        self.images = images.reshape(n, 3, 32, 32).transpose(0, 2, 3, 1)\
-                            .astype(float)/255
-        self.labels = one_hot(np.hstack([d["fine_labels"] for d in data]), 100)
+        self.images = images.reshape(n, 3, 32, 32).transpose(0, 2, 3, 1).astype(float)
+        # self.labels = one_hot(np.hstack([d["fine_labels"] for d in data]), 100)
+        self.labels = np.hstack([d["fine_labels"] for d in data])
         return self
 
     def next_batch(self, batch_size):
         x, y = self.images[self._i:self._i+batch_size], self.labels[self._i:self._i+batch_size]
         self._i = (self._i + batch_size) % len(self.images)
         return x, y
+
+    def generateSpecializedData(self, class_id, count = 500):
+        train_index = []
+
+        index = list(np.where(self.labels[:] == class_id)[0])[0:count]
+        train_index += index
+
+        sp_x = self.images[train_index]
+        sp_y = self.labels[train_index]
+        sp_y = one_hot(sp_y, 100)
+
+        sp_y = sp_y.astype('float32')
+        sp_x = sp_x.astype('float32')
+        return sp_x, sp_y
 
 
 # ============ Data Manager: Wrap the Data Loader===============
@@ -58,6 +73,11 @@ class CifarDataManager(object):
         '''
         self.train = CifarLoader(["train"]).load()
         self.test = CifarLoader(["test"]).load()
+
+
+
+
+
 
 def display_cifar(images, size):
     n = len(images)

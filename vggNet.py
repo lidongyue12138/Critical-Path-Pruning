@@ -1,7 +1,7 @@
 import pickle
 import random
 # from decimal import *
-
+import json
 import keras
 import numpy as np
 import tensorflow as tf
@@ -49,6 +49,17 @@ class Model():
 
         return generatedGates
 
+    '''
+    Encode and save for a batch of data
+    '''
+    def encode_class_data(self, class_id , train_images):
+        # filename = "./innerclass/class"+str(class_id)+"gate.json"
+        for i in range(len(train_images)):
+            generatedGate = self.compute_encoding(train_images[i].reshape((1,32,32,3))) # generatedGate is a list of dicts{layername:xx, shape:xx, lambda:xx}
+            picname = "class" + str(class_id) + "-pic" + str(i)
+            jsonpath = "./ImageEncoding/" + picname + ".json"
+            with open(jsonpath,'w') as f:
+                json.dump(generatedGate,f, sort_keys=True, indent=4, separators=(',', ':'))
 
     '''
     Restore the original network weights
@@ -204,7 +215,7 @@ class Model():
         for epoch in range(100):
             if epoch == 50: 
                 learning_rate /= 10
-                L1_loss_penalty *= 10
+                # L1_loss_penalty *= 10
 
             self.sess.run(self.train_step, feed_dict = {
                 self.xs: input_data,
