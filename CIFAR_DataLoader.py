@@ -37,12 +37,13 @@ class CifarLoader(object):
         self.images = images.reshape(n, 3, 32, 32).transpose(0, 2, 3, 1).astype(float)
         # self.labels = one_hot(np.hstack([d["fine_labels"] for d in data]), 100)
         self.labels = np.hstack([d["fine_labels"] for d in data])
+        self.images = self.normalize_images(self.images)
         return self
 
     def next_batch(self, batch_size):
         x, y = self.images[self._i:self._i+batch_size], self.labels[self._i:self._i+batch_size]
         self._i = (self._i + batch_size) % len(self.images)
-        return x, y
+        return x, one_hot(y, 100) 
 
     def generateSpecializedData(self, class_id, count = 500):
         train_index = []
@@ -57,6 +58,26 @@ class CifarLoader(object):
         sp_y = sp_y.astype('float32')
         sp_x = sp_x.astype('float32')
         return sp_x, sp_y
+    
+    def generateAllData(self):
+        return self.images, one_hot(self.labels, 100)
+
+    # calculate the means and stds for the whole dataset per channel
+    def measure_mean_and_std(self, images):
+        means = []
+        stds = []
+        for ch in range(images.shape[-1]):
+            means.append(np.mean(images[:, :, :, ch]))
+            stds.append(np.std(images[:, :, :, ch]))
+        return means, stds
+
+    # normalization for per channel
+    def normalize_images(self, images):
+        images = images.astype('float64')
+        means, stds = self.measure_mean_and_std(images)
+        for i in range(images.shape[-1]):
+            images[:, :, :, i] = ((images[:, :, :, i] - means[i]) / stds[i])
+        return images
 
 
 # ============ Data Manager: Wrap the Data Loader===============
@@ -73,11 +94,6 @@ class CifarDataManager(object):
         '''
         self.train = CifarLoader(["train"]).load()
         self.test = CifarLoader(["test"]).load()
-
-
-
-
-
 
 def display_cifar(images, size):
     n = len(images)
