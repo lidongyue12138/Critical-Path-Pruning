@@ -9,7 +9,6 @@ from sklearn.utils import shuffle
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "5,6,7"
 
-
 # ================== VGG Network Model with Control Gates ==================
 class Model():
     def __init__(self, learning_rate = 0.1, L1_loss_penalty = 0.02, threshold = 0.1):
