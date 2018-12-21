@@ -20,7 +20,7 @@ class TrimmedModel():
         self.build_model(self.graph, 100)
         self.restore_model(self.graph)
 
-        self.class_id = [0]
+        self.target_class_id = [0] # assign the trim class id 
         # self.close_sess()
     
     '''
@@ -52,7 +52,7 @@ class TrimmedModel():
     Assign trimmed weight to weight variables
     '''
     def assign_weight(self):
-        for class_id in self.class_id:
+        for class_id in self.target_class_id:
             maskDict = self.mask_class_unit(class_id)
 
             for tmpLayer in maskDict:
@@ -116,10 +116,10 @@ class TrimmedModel():
         
         count = 0
         for i in range(len(ys_pred_argmax)):
-            if ys_true_argmax[i] in self.class_id:
+            if ys_true_argmax[i] in self.target_class_id:
                 count += 1 if ys_pred_argmax[i] == ys_true_argmax[i] else 0
             else:
-                count += 1 if ys_pred_argmax[i] not in self.class_id else 0
+                count += 1 if ys_pred_argmax[i] not in self.target_class_id else 0
         
         test_accuracy = count/len(test_labels)
         print(test_accuracy)
