@@ -19,11 +19,10 @@ class TrimmedModel():
         self.graph = tf.Graph()
         self.build_model(self.graph, 100)
         self.restore_model(self.graph)
-        # self.close_sess()
- 
-        # with self.graph.as_default():
-        #     print(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
 
+        self.class_id = [0]
+        # self.close_sess()
+    
     '''
     Find mask class unit
     '''
@@ -53,63 +52,76 @@ class TrimmedModel():
     Assign trimmed weight to weight variables
     '''
     def assign_weight(self):
-        class_id = 0
-        maskDict = self.mask_class_unit(class_id)
+        for class_id in self.class_id:
+            maskDict = self.mask_class_unit(class_id)
 
-        for tmpLayer in maskDict:
-            if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
-                with self.graph.as_default():
-                    layerNum = tmpLayer["name"].strip("Conv")
-                    name = "Conv" + layerNum + "/composite_function/kernel:0"
-                    for var in tf.global_variables():
-                        if var.name == name:
-                            tmpWeights = self.sess.run(var)
-                            tmpMask = np.array(tmpLayer["shape"])
+            for tmpLayer in maskDict:
+                if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
+                    with self.graph.as_default():
+                        layerNum = tmpLayer["name"].strip("Conv")
+                        name = "Conv" + layerNum + "/composite_function/kernel:0"
+                        for var in tf.global_variables():
+                            if var.name == name:
+                                tmpWeights = self.sess.run(var)
+                                tmpMask = np.array(tmpLayer["shape"])
 
-                            tmpWeights[:,:,:, tmpMask == 0] = 0
-                            assign = tf.assign(var, tmpWeights)
-                            self.sess.run(assign)
-    
-                            print(self.sess.run(self.graph.get_tensor_by_name(name))==0)
-            if (tmpLayer["name"][0] == "F"): # if the layer is fully connected
-                with self.graph.as_default():
-                    layerNum = tmpLayer["name"].strip("FC")
-                    name_W = "FC" + layerNum + "/W:0"
-                    name_bias = "FC" + layerNum + "/bias:0"
-                    for var in tf.global_variables():
-                        if var.name == name_W:
-                            tmpWeights = self.sess.run(var)
-                            tmpMask = np.array(tmpLayer["shape"])
+                                tmpWeights[:,:,:, tmpMask == 0] = 0
+                                assign = tf.assign(var, tmpWeights)
+                                self.sess.run(assign)
+        
+                                print(self.sess.run(self.graph.get_tensor_by_name(name))==0)
+                if (tmpLayer["name"][0] == "F"): # if the layer is fully connected
+                    with self.graph.as_default():
+                        layerNum = tmpLayer["name"].strip("FC")
+                        name_W = "FC" + layerNum + "/W:0"
+                        name_bias = "FC" + layerNum + "/bias:0"
+                        for var in tf.global_variables():
+                            if var.name == name_W:
+                                tmpWeights = self.sess.run(var)
+                                tmpMask = np.array(tmpLayer["shape"])
 
-                            tmpWeights[:, tmpMask == 0] = 0
-                            assign = tf.assign(var, tmpWeights)
-                            self.sess.run(assign)
+                                tmpWeights[:, tmpMask == 0] = 0
+                                assign = tf.assign(var, tmpWeights)
+                                self.sess.run(assign)
 
-                            print(self.sess.run(self.graph.get_tensor_by_name(name_W))==0)
-                        if var.name == name_bias:
-                            tmpBias = self.sess.run(var)
-                            tmpMask = np.array(tmpLayer["shape"])
+                                print(self.sess.run(self.graph.get_tensor_by_name(name_W))==0)
+                            if var.name == name_bias:
+                                tmpBias = self.sess.run(var)
+                                tmpMask = np.array(tmpLayer["shape"])
 
-                            tmpBias[tmpMask == 0] = 0
-                            assign = tf.assign(var, tmpBias)
-                            self.sess.run(assign)
-                            print(self.sess.run(self.graph.get_tensor_by_name(name_bias))==0)
+                                tmpBias[tmpMask == 0] = 0
+                                assign = tf.assign(var, tmpBias)
+                                self.sess.run(assign)
+                                print(self.sess.run(self.graph.get_tensor_by_name(name_bias))==0)
 
-        with self.graph.as_default():
-            saver = tf.train.Saver(max_to_keep = None)
-            saver.save(self.sess, 'vggNet/test.ckpt')
+        '''
+        Save the model
+        '''
+        # with self.graph.as_default():
+        #     saver = tf.train.Saver(max_to_keep = None)
+        #     saver.save(self.sess, 'vggNet/test.ckpt')
 
     '''
     Test Accuracy
     '''
     def test_accuracy(self, test_images, test_labels):
-        test_accuracy = self.sess.run(self.accuracy, feed_dict={
+        ys_pred_argmax, ys_true_argmax = self.sess.run(
+            [self.ys_pred_argmax, self.ys_true_argmax], feed_dict={
             self.xs: test_images,
             self.ys_true: test_labels, 
             self.lr : 0.1,
             self.is_training: False,
             self.keep_prob: 1.0
         })
+        
+        count = 0
+        for i in range(len(ys_pred_argmax)):
+            if ys_true_argmax[i] in self.class_id:
+                count += 1 if ys_pred_argmax[i] == ys_true_argmax[i] else 0
+            else:
+                count += 1 if ys_pred_argmax[i] not in self.class_id else 0
+        
+        test_accuracy = count/len(test_labels)
         print(test_accuracy)
 
     '''
@@ -182,6 +194,8 @@ class TrimmedModel():
             '''
             Accuracy & Top-5 Accuracy
             '''
+            self.ys_pred_argmax = tf.argmax(ys_pred, 1)
+            self.ys_true_argmax = tf.argmax(self.ys_true, 1)
             correct_prediction = tf.equal(tf.argmax(ys_pred, 1), tf.argmax(self.ys_true, 1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
             
