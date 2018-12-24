@@ -16,4 +16,3 @@ for _ in range(50):
     test_images, test_labels = d.test.next_batch(200)
 
     model.test_accuracy(test_images, test_labels)
-    break

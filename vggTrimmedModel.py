@@ -49,11 +49,52 @@ class TrimmedModel():
             return gatesValueDict
 
     '''
+    mask by value
+    '''
+    def mask_unit_by_value(self, classid):
+        formulizedDict = {}
+        json_path = "./ClassEncoding/class" + str(classid) + ".json"
+        
+        allGatesValue = []
+
+        with open(json_path, "r") as f:
+            gatesValueDict = json.load(f)
+            for idx in range(len(gatesValueDict)):
+                layer = gatesValueDict[idx]
+                name = layer["name"]
+                vec = layer["shape"]
+                allGatesValue += vec
+                
+        allGatesValue.sort()
+        allGatesValue = allGatesValue[:int(len(allGatesValue)*0.8)]
+        
+        allGatesValue = set(allGatesValue)
+        with open(json_path, "r") as f:
+            gatesValueDict = json.load(f)
+            for idx in range(len(gatesValueDict)):
+                layer = gatesValueDict[idx]
+                name = layer["name"]
+                vec = layer["shape"]        
+                # process name
+                name = name.split('/')[0]
+                # process vec
+                for i in range(len(vec)):
+                    if vec[i] in allGatesValue or vec[i]==0:
+                        vec[i] = 0
+                    else:
+                        vec[i] = 1
+                layer["name"] = name
+                layer["shape"] = vec
+            with open("./ClassEncoding/mask1.json", "w") as tmpFile:
+                json.dump(gatesValueDict, tmpFile)
+            return gatesValueDict
+
+    '''
     Assign trimmed weight to weight variables
     '''
     def assign_weight(self):
         for class_id in self.target_class_id:
-            maskDict = self.mask_class_unit(class_id)
+            maskDict = self.mask_unit_by_value(class_id)
 
             for tmpLayer in maskDict:
                 if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
