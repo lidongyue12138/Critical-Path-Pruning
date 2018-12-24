@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
 import os
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 class TrimmedModel():
     '''
     This class does:
@@ -15,19 +15,22 @@ class TrimmedModel():
         2. Assign new weights to layers 
         3. Test Accuracy
     '''
-    def __init__(self):
+    def __init__(self,target_class_id=[0], multiPruning=False):
         self.graph = tf.Graph()
-        self.build_model(self.graph, 100)
+        self.build_model(self.graph)
+        print("restored the pretrained model......")
         self.restore_model(self.graph)
-
-        self.target_class_id = [0] # assign the trim class id 
+        
+        self.target_class_id = target_class_id # assign the trim class id 
+        self.multiPruning = multiPruning # ready to prune for one single class or multi classes
         # self.close_sess()
     
     '''
     Find mask class unit
     '''
     def mask_class_unit(self, classid):
-        formulizedDict = {}
+        self.test_counter = 0
+        theshold = 10
         json_path = "./ClassEncoding/class" + str(classid) + ".json"
         with open(json_path, "r") as f:
             gatesValueDict = json.load(f)
@@ -90,51 +93,105 @@ class TrimmedModel():
             return gatesValueDict
 
     '''
+    Fine mask class multi, merge multi-class JSONs
+    '''
+    def mask_class_multi(self):
+        theshold = 5
+        self.test_counter = 0
+        ''' init the dict with class0.json '''
+        multiClassGates = self.mask_class_unit(self.target_class_id[0])
+        for classid in self.target_class_id:
+            if (classid == self.target_class_id[0]):
+                continue
+            ''' Merge JSONs continuously '''
+            json_path = "./ClassEncoding/class" + str(classid) + ".json"
+            with open(json_path, "r") as f:
+                gatesValueDict = json.load(f)
+                for idx in range(len(gatesValueDict)):
+                    layer = gatesValueDict[idx]
+                    name = layer["name"]
+                    vec = layer["shape"]
+                    # process name
+                    name = name.split('/')[0]
+                    # process vec
+                    for i in range(len(vec)):
+                        if vec[i] < theshold:
+                            vec[i] = 0
+                        else:
+                            vec[i] = 1
+                    gatesValueDict[idx]["name"] = name
+                    gatesValueDict[idx]["shape"] = vec
+                
+                ''' Now we merge gatesValueDict and multiClassGates '''
+                for idx1 in range(len(gatesValueDict)):
+                    for idx2 in  range(len(multiClassGates)):
+                        if (gatesValueDict[idx1]["name"] == multiClassGates[idx2]["name"]):
+                            tomerge = gatesValueDict[idx1]["shape"]
+                            for idx3 in range(len(tomerge)):
+                                if (tomerge[idx3] == 1 and multiClassGates[idx2]["shape"][idx3] == 0):
+                                    multiClassGates[idx2]["shape"][idx3] = 1
+                                    self.test_counter += 1
+                                else:
+                                    pass
+                        else:
+                            pass
+            print("Furthermore, class ", str(classid), " activate nums of neurons: ", str(self.test_counter))
+
+        return multiClassGates
+
+    '''
     Assign trimmed weight to weight variables
     '''
     def assign_weight(self):
-        for class_id in self.target_class_id:
-            maskDict = self.mask_unit_by_value(class_id)
+        '''
+        Encapsulate unit-class pruning and multi-class pruning print("PRUNE FOR CLASS", self.target_class_id)
+        '''
+        print("assign weights......")
+        maskDict = []
+        if (self.multiPruning == True and len(self.target_class_id) > 1):
+            maskDict = self.mask_class_multi()
+        else:
+            maskDict = self.mask_unit_by_value(self.target_class_id[0])
 
-            for tmpLayer in maskDict:
-                if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
-                    with self.graph.as_default():
-                        layerNum = tmpLayer["name"].strip("Conv")
-                        name = "Conv" + layerNum + "/composite_function/kernel:0"
-                        for var in tf.global_variables():
-                            if var.name == name:
-                                tmpWeights = self.sess.run(var)
-                                tmpMask = np.array(tmpLayer["shape"])
+        for tmpLayer in maskDict:
+            if (tmpLayer["name"][0] == "C"): # if the layer is convolutional layer
+                with self.graph.as_default():
+                    layerNum = tmpLayer["name"].strip("Conv")
+                    name = "Conv" + layerNum + "/composite_function/kernel:0"
+                    for var in tf.global_variables():
+                        if var.name == name:
+                            tmpWeights = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
 
-                                tmpWeights[:,:,:, tmpMask == 0] = 0
-                                assign = tf.assign(var, tmpWeights)
-                                self.sess.run(assign)
-        
-                                print(self.sess.run(self.graph.get_tensor_by_name(name))==0)
-                if (tmpLayer["name"][0] == "F"): # if the layer is fully connected
-                    with self.graph.as_default():
-                        layerNum = tmpLayer["name"].strip("FC")
-                        name_W = "FC" + layerNum + "/W:0"
-                        name_bias = "FC" + layerNum + "/bias:0"
-                        for var in tf.global_variables():
-                            if var.name == name_W:
-                                tmpWeights = self.sess.run(var)
-                                tmpMask = np.array(tmpLayer["shape"])
+                            tmpWeights[:,:,:, tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpWeights)
+                            self.sess.run(assign)
+    
+                            # print(self.sess.run(self.graph.get_tensor_by_name(name))==0)
+            if (tmpLayer["name"][0] == "F"): # if the layer is fully connected
+                with self.graph.as_default():
+                    layerNum = tmpLayer["name"].strip("FC")
+                    name_W = "FC" + layerNum + "/W:0"
+                    name_bias = "FC" + layerNum + "/bias:0"
+                    for var in tf.global_variables():
+                        if var.name == name_W:
+                            tmpWeights = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
 
-                                tmpWeights[:, tmpMask == 0] = 0
-                                assign = tf.assign(var, tmpWeights)
-                                self.sess.run(assign)
+                            tmpWeights[:, tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpWeights)
+                            self.sess.run(assign)
 
-                                print(self.sess.run(self.graph.get_tensor_by_name(name_W))==0)
-                            if var.name == name_bias:
-                                tmpBias = self.sess.run(var)
-                                tmpMask = np.array(tmpLayer["shape"])
+                            # print(self.sess.run(self.graph.get_tensor_by_name(name_W))==0)
+                        if var.name == name_bias:
+                            tmpBias = self.sess.run(var)
+                            tmpMask = np.array(tmpLayer["shape"])
 
-                                tmpBias[tmpMask == 0] = 0
-                                assign = tf.assign(var, tmpBias)
-                                self.sess.run(assign)
-                                print(self.sess.run(self.graph.get_tensor_by_name(name_bias))==0)
-
+                            tmpBias[tmpMask == 0] = 0
+                            assign = tf.assign(var, tmpBias)
+                            self.sess.run(assign)
+                            # print(self.sess.run(self.graph.get_tensor_by_name(name_bias))==0)
+        print("assign finished!")
         '''
         Save the model
         '''
