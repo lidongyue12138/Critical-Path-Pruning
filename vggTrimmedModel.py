@@ -1,12 +1,15 @@
-import pickle
-import random
 # from decimal import *
 import json
+import os
+import pickle
+import random
+import time
+
 import keras
 import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
-import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 class TrimmedModel():
     '''
@@ -199,10 +202,29 @@ class TrimmedModel():
         #     saver = tf.train.Saver(max_to_keep = None)
         #     saver.save(self.sess, 'vggNet/test.ckpt')
 
+
+
     '''
     Test Accuracy
     '''
+    def test_accuracy_pretrim(self, test_images, test_labels):
+
+        start = time.time()
+        accuracy = self.sess.run(
+            self.accuracy, feed_dict={
+            self.xs: test_images,
+            self.ys_true: test_labels, 
+            self.lr : 0.1,
+            self.is_training: False,
+            self.keep_prob: 1.0
+        }) 
+        end = time.time()
+        print("Pretrimmed Model Test Time: " +  str(end - start))
+
+        print(accuracy)
+
     def test_accuracy(self, test_images, test_labels):
+        start = time.time()
         ys_pred_argmax, ys_true_argmax = self.sess.run(
             [self.ys_pred_argmax, self.ys_true_argmax], feed_dict={
             self.xs: test_images,
@@ -211,7 +233,9 @@ class TrimmedModel():
             self.is_training: False,
             self.keep_prob: 1.0
         })
-        
+        end = time.time()
+        print("Trimmed Model Test Time: " + str(end - start))
+
         count = 0
         for i in range(len(ys_pred_argmax)):
             if ys_true_argmax[i] in self.target_class_id:
@@ -326,7 +350,6 @@ class TrimmedModel():
     def close_sess(self):
         self.sess.close()
         
-
     '''
     Helper Functions: to build model
     '''

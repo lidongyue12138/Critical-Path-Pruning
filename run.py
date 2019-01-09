@@ -112,7 +112,7 @@ model = Model(
     learning_rate = learning_rate, 
     L1_loss_penalty = L1_loss_penalty,
     threshold = threshold
-)
+) 
 def run():
     # choose class data
     # train_images, train_labels = d.train.generateSpecializedData(class_id = 1, count = 5)
