@@ -8,7 +8,7 @@ model = TrimmedModel()
 
 '''
 Todo List: 
-    1. Modify the accuracy in trimmed network
+    1. Modify the accuracy in trimmed network (Done)
 '''
 for _ in range(50):
     test_images, test_labels = d.test.next_batch(200)
@@ -18,3 +18,7 @@ for _ in range(50):
     model.assign_weight()
     model.test_accuracy(test_images, test_labels)
     break
+
+
+
+

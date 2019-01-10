@@ -44,6 +44,11 @@ class CifarLoader(object):
         x, y = self.images[self._i:self._i+batch_size], self.labels[self._i:self._i+batch_size]
         self._i = (self._i + batch_size) % len(self.images)
         return x, one_hot(y, 100) 
+    
+    def next_batch_without_onehot(self, batch_size):
+        x, y = self.images[self._i:self._i+batch_size], self.labels[self._i:self._i+batch_size]
+        self._i = (self._i + batch_size) % len(self.images)
+        return x, y
 
     def generateSpecializedData(self, class_id, count = 500):
         train_index = []

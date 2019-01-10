@@ -202,8 +202,6 @@ class TrimmedModel():
         #     saver = tf.train.Saver(max_to_keep = None)
         #     saver.save(self.sess, 'vggNet/test.ckpt')
 
-
-
     '''
     Test Accuracy
     '''
