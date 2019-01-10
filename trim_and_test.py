@@ -4,7 +4,8 @@ import numpy as np
 d = CifarDataManager()
 
 
-model = TrimmedModel()
+model = TrimmedModel(target_class_id= np.random.randint(100,size=10),
+                     multiPruning=True)
 
 '''
 Todo List: 
