@@ -142,6 +142,78 @@ class TrimmedModel():
 
         return multiClassGates
 
+    def mask_class_multi_by_value(self):
+        '''
+        Calculate sum of multi-class scalars
+        '''
+        print("RUNNING mask_class_multi_by_value.py")
+        # print("Pruning Ratio: ", self.prune_ratio)
+        multiClassGates = list()
+        for classid in self.target_class_id:
+            '''
+            Merge JSONs continuously
+            '''
+            json_path = "./ClassEncoding/class" + str(classid) + ".json"
+            with open(json_path, "r") as f:
+                gatesValueDict = json.load(f)
+                for idx in range(len(gatesValueDict)):
+                    layer = gatesValueDict[idx]
+                    name = layer["name"]
+                    vec = layer["shape"]
+                    # process name
+                    name = name.split('/')[0]
+                    gatesValueDict[idx]["name"] = name
+                    gatesValueDict[idx]["shape"] = vec
+                if not multiClassGates:
+                    '''
+                    Initialize the multiClassGates
+                    '''
+                    multiClassGates = gatesValueDict
+                else:
+                    '''
+                    Now we merge gatesValueDict and multiClassGates
+                    '''
+                    for idx1 in range(len(gatesValueDict)):
+                        for idx2 in range(len(multiClassGates)):
+                            if (gatesValueDict[idx1]["name"] == multiClassGates[idx2]["name"]):
+                                tomerge = gatesValueDict[idx1]["shape"]
+                                for idx3 in range(len(tomerge)):
+                                    multiClassGates[idx2]["shape"][idx3] += tomerge[idx3]
+                            else:
+                                pass
+        '''
+        Sort & Mask for multi-class conditions
+        '''
+        allGatesValue = []
+        for idx in range(len(multiClassGates)):
+            layer = multiClassGates[idx]
+            name = layer["name"]
+            vec = layer["shape"]
+            allGatesValue += vec
+                
+        allGatesValue.sort()
+        allGatesValue = allGatesValue[:int(len(allGatesValue)*self.prune_ratio)]
+        allGatesValue = set(allGatesValue)
+        
+        result = multiClassGates
+
+        for idx in range(len(result)):
+            layer = result[idx]
+            name = layer["name"]
+            vec = layer["shape"]        
+            # process name
+            name = name.split('/')[0]
+            # process vec
+            for i in range(len(vec)):
+                if vec[i] in allGatesValue:
+                    vec[i] = 0
+                else:
+                    vec[i] = 1
+
+            layer["name"] = name
+            layer["shape"] = vec
+        return result
+
     '''
     Assign trimmed weight to weight variables
     '''
@@ -152,7 +224,7 @@ class TrimmedModel():
         print("assign weights......")
         maskDict = []
         if (self.multiPruning == True and len(self.target_class_id) > 1):
-            maskDict = self.mask_class_multi()
+            maskDict = self.mask_class_multi_by_value()
         else:
             maskDict = self.mask_unit_by_value(self.target_class_id[0])
 
