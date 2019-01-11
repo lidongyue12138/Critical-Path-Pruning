@@ -115,8 +115,8 @@ model = Model(
 ) 
 def run():
     # choose class data
-    # train_images, train_labels = d.train.generateSpecializedData(class_id = 1, count = 5)
-    # model.encode_class_data(1, train_images)
+    train_images, train_labels = d.train.generateSpecializedData(class_id = 1, count = 5)
+    model.encode_class_data(1, train_images)
     calculate_total_by_weights(0)
 
 run()
