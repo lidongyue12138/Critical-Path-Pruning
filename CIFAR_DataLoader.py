@@ -109,11 +109,17 @@ def display_cifar(images, size):
     plt.imshow(im)
     plt.show()
 
-# d = CifarDataManager()
+d = CifarDataManager()
 # print("Number of train images: {}".format(len(d.train.images)))
 # print("Number of train labels: {}".format(len(d.train.labels)))
 # print("Number of test images: {}".format(len(d.test.images)))
 # print("Number of test images: {}".format(len(d.test.labels)))
 # images = d.train.images
-# # display_cifar(images, 10)
+# print(images[0])
+# display_cifar(images, 10)
 # print(images.shape)
+
+images, labels = d.train.generateSpecializedData(class_id=3)
+display_cifar(images, 10)
+# meta_dict = unpickle("meta")
+# print(meta_dict)
