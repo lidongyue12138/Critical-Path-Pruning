@@ -20,6 +20,7 @@ class FineTuneModel():
         '''
         self.learning_rate = 0.01
         self.epoch = 0
+        self.prune_ratio = 0.9
 
         '''
         For one input image :

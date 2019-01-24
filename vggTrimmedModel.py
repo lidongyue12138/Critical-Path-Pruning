@@ -19,6 +19,8 @@ class TrimmedModel():
         3. Test Accuracy
     '''
     def __init__(self,target_class_id=[0], multiPruning=False):
+        self.prune_ratio = 0.9
+
         self.graph = tf.Graph()
         self.build_model(self.graph)
         print("restored the pretrained model......")

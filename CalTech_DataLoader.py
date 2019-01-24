@@ -121,8 +121,8 @@ def display_images(images, size):
     plt.imshow(im)
     plt.show()
 
-if __name__ == "__main__":
-    d = CalTechDataManager()
+# if __name__ == "__main__":
+#     d = CalTechDataManager()
 
-    images, labels = d.train.next_batch_without_onehot(100)
-    print(images.shape)
+#     images, labels = d.train.next_batch_without_onehot(100)
+#     print(images.shape)
