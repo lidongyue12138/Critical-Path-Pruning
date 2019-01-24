@@ -16,15 +16,24 @@ data_loader = CalTechDataManager()
 
 test_images, test_labels = data_loader.test.next_batch_without_onehot(500)
 
-test_labels = modify_label(test_labels, test_classes = [9])
+'''
+Here you need to designate the test_classes in Caltech256
+'''
+test_labels = modify_label(test_labels, test_classes = [24])
 
-model = FineTuneModel(target_class_id=[3])
+'''
+Here you need to designate the test_classes in Cifar100
+'''
+model = FineTuneModel(target_class_id=[14])
 model.assign_weight()
 model.test_accuracy(test_images, test_labels)
 
 for i in range(10):
     train_images, train_labels = data_loader.train.next_batch_without_onehot(200)
-    train_labels = modify_label(train_labels, test_classes = [9])
+    '''
+    Here you need to designate the test_classes in Caltech256
+    '''
+    train_labels = modify_label(train_labels, test_classes = [24])
     model.train_model(train_images, train_labels)
     model.test_accuracy(test_images, test_labels)
 
